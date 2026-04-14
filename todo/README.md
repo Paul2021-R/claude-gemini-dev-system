@@ -21,8 +21,8 @@ done-criteria: 완료 판단 기준
 
 ### owner 분배 기준
 
-<!-- init에서 사용자 답변 또는 기본값으로 채워진다 -->
-<!-- 기본값: init/defaults/owner-template.md 참조 -->
+- **agent**: Claude/Gemini 에이전트가 직접 코드를 작성하고 기능을 구현하는 태스크.
+- **user**: API Key 발급, 로컬 환경 설정, 최종 승인 등 사용자의 직접적인 개입이 필요한 태스크.
 
 ### 우선순위 기준
 - **P0**: 이게 없으면 다른 작업 진행 불가
