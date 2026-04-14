@@ -4,6 +4,7 @@ set -euo pipefail
 # ============================================================
 # init.sh — CGDS (Claude-Gemini Dev System)
 # project-docs/ 내부에서 실행한다.
+# 사용법: bash init.sh
 # ============================================================
 
 DOCS_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -50,7 +51,6 @@ echo ""
 # Phase 0: 사전 확인 + 프로젝트명 입력
 # ============================================================
 
-# init/ 디렉토리 존재 여부로 이미 초기화됐는지 판단
 if [ -d "${DOCS_DIR}/init" ]; then
   warn "이미 초기화된 project-docs입니다."
   read -rp "   재초기화 하시겠습니까? 기존 내용이 덮어씌워집니다 (y/N): " confirm
@@ -527,7 +527,6 @@ info "Git 브랜치 생성 중..."
 cd "${DOCS_DIR}"
 
 if [ -d ".git" ]; then
-  # 이미 git repo인 경우 — 브랜치만 생성
   CURRENT_BRANCH="$(git branch --show-current 2>/dev/null || echo "")"
 
   if [ "${CURRENT_BRANCH}" = "${PROJECT_SLUG}" ]; then
@@ -543,9 +542,26 @@ if [ -d ".git" ]; then
   git add -A
   git commit -m "docs: project-docs 초기화 (${PROJECT_NAME})" --allow-empty
   done_ "커밋 완료"
+
+  # upstream push
+  HAS_REMOTE="$(git remote get-url origin 2>/dev/null || echo "")"
+  if [ -n "${HAS_REMOTE}" ]; then
+    info "원격 push 중... (origin/${PROJECT_SLUG})"
+    if git push -u origin "${PROJECT_SLUG}" 2>/dev/null; then
+      done_ "push 완료: origin/${PROJECT_SLUG}"
+    else
+      warn "push 실패. 수동으로 실행하세요: git push -u origin ${PROJECT_SLUG}"
+    fi
+  else
+    warn "remote origin이 없습니다. push를 건너뜁니다."
+    info "원격 연결 후 push:"
+    echo -e "     ${DIM}git remote add origin <레포 URL>${NC}"
+    echo -e "     ${DIM}git push -u origin ${PROJECT_SLUG}${NC}"
+  fi
 else
   warn ".git 이 없습니다. 브랜치 생성을 건너뜁니다."
-  info "수동으로 git init 후 브랜치를 생성하세요:"
+  info "수동으로 설정하세요:"
+  echo -e "     ${DIM}cd project-docs${NC}"
   echo -e "     ${DIM}git init && git add . && git commit -m \"docs: init\"${NC}"
   echo -e "     ${DIM}git checkout -b ${PROJECT_SLUG}${NC}"
 fi
