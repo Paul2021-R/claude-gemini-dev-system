@@ -3,14 +3,14 @@ set -euo pipefail
 
 # ============================================================
 # init.sh — CGDS (Claude-Gemini Dev System)
-# project-docs/ 내부에서 실행한다.
-# 사용법: bash init.sh
+# Run inside project-docs/
+# Usage: bash init.sh
 # ============================================================
 
 DOCS_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(dirname "${DOCS_DIR}")"
 
-# ---- 색상 ----
+# ---- colors ----
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 CYAN='\033[0;36m'
@@ -24,7 +24,7 @@ done_() { echo -e "${GREEN}[DONE]${NC} $1"; }
 warn()  { echo -e "${YELLOW}[WARN]${NC} $1"; }
 
 # ============================================================
-# 로고
+# Logo
 # ============================================================
 echo ""
 echo -e "${MAGENTA}${BOLD}"
@@ -48,7 +48,7 @@ echo -e "   ${DIM}Multi-agent project documentation framework${NC}"
 echo ""
 
 # ============================================================
-# Phase 0: 사전 확인 + 프로젝트명 입력
+# Phase 0: Pre-check + Project name input
 # ============================================================
 
 if [ -d "${DOCS_DIR}/init" ]; then
@@ -75,7 +75,7 @@ info "브랜치명: ${BOLD}${PROJECT_SLUG}${NC}"
 echo ""
 
 # ============================================================
-# Phase 1: 디렉토리 생성
+# Phase 1: Directory creation
 # ============================================================
 info "디렉토리 구조 생성 중..."
 
@@ -88,6 +88,7 @@ dirs=(
   "decisions"
   "roadmap"
   "todo"
+  "shared"
   "temporary"
 )
 
@@ -98,7 +99,7 @@ done
 done_ "디렉토리 생성 완료"
 
 # ============================================================
-# Phase 2: 골격 파일 생성
+# Phase 2: Skeleton files
 # ============================================================
 info "골격 파일 생성 중..."
 
@@ -207,6 +208,11 @@ owner 분배 기준을 사용자에게 질문하여 설정한다.
 - "에이전트에게 위임할 작업 유형을 알려주세요 (예: CRUD, 테스트, 보일러플레이트 등)"
 - 답변 없으면 기본값 사용 (init/defaults/owner-template.md 참조)
 
+### 2-5. REVIEWER.md 프로젝트 컨텍스트 채우기
+Discovery 결과에서 아래 항목을 REVIEWER.md의 프로젝트 컨텍스트 섹션에 자동 반영한다.
+- 대상 플랫폼 (OS, 런타임, 프로토콜)
+- 기술 스택 제약 (프레임워크, 스레딩 모델, 특이 사항)
+
 ---
 
 ## Phase 3: 검증
@@ -233,7 +239,7 @@ project-docs/init/INIT.md를 읽고 순서대로 실행해줘.
 \`\`\`
 HEREDOC
 
-# ---- owner 기본값 ----
+# ---- owner defaults ----
 cat > "${DOCS_DIR}/init/defaults/owner-template.md" << 'HEREDOC'
 # Owner 분배 기본값
 
@@ -459,6 +465,124 @@ cat > "${DOCS_DIR}/todo/done.md" << 'HEREDOC'
 (완료 항목이 여기로 이동한다)
 HEREDOC
 
+# ---- shared (inter-agent communication) ----
+cat > "${DOCS_DIR}/shared/README.md" << 'HEREDOC'
+# Shared — Inter-Agent Communication
+
+This directory is the **async communication channel** between agents.
+All files in this directory MUST be written in **English** for token efficiency.
+
+## Communication Protocol
+
+### Review ↔ Result Loop
+
+```
+Reviewer (Gemini #2)              Implementer (Claude Code)
+       │                                    │
+       ├─ creates review_YYYY_MM_DD.md ────→│
+       │                                    ├─ reads review
+       │                                    ├─ applies fixes
+       │←── creates result_YYYY_MM_DD.md ───┤
+       ├─ reads result                      │
+       ├─ verifies fixes                    │
+       └─ (optional) creates follow-up ────→│
+```
+
+### File Naming
+
+| File | Author | Purpose |
+|------|--------|---------|
+| `review_YYYY_MM_DD.md` | Reviewer (Gemini #2) | Runtime review report |
+| `result_YYYY_MM_DD.md` | Implementer (Claude Code) | Fix report responding to review |
+| `review_YYYY_MM_DD_v2.md` | Reviewer | Follow-up if result is insufficient |
+| `result_YYYY_MM_DD_v2.md` | Implementer | Response to follow-up |
+
+When multiple reviews occur on the same date, append version suffix: `_v2`, `_v3`, etc.
+
+### File Format — review_*.md
+
+```markdown
+# Review Report — YYYY-MM-DD
+> Reviewer: Gemini CLI #2
+> Scope: {files or modules reviewed}
+> Platform: {target OS / runtime}
+
+## Critical
+1. [{file}:{line}] {problem description}
+   - checklist: {item number, e.g. 2-1}
+   - cause: {why this is a problem}
+   - fix: {specific fix suggestion}
+
+## Warning
+1. [{file}:{line}] {problem description}
+   - checklist: {item number}
+   - cause:
+   - fix:
+
+## Info
+1. [{file}:{line}] {note}
+
+## Summary
+- critical: {N}
+- warning: {N}
+- info: {N}
+```
+
+### File Format — result_*.md
+
+```markdown
+# Result Report — YYYY-MM-DD
+> Implementer: Claude Code
+> Responding to: review_YYYY_MM_DD.md
+
+## Applied Fixes
+
+### Critical
+1. [{file}:{line}] {what was fixed}
+   - review item: Critical #1
+   - change: {description of code change}
+   - status: fixed | deferred | wontfix
+   - reason: {if deferred or wontfix, explain why}
+
+### Warning
+1. [{file}:{line}] {what was fixed}
+   - review item: Warning #1
+   - change:
+   - status:
+
+## Deferred Items
+{list items not fixed in this cycle with reasons}
+
+## Summary
+- fixed: {N}
+- deferred: {N}
+- wontfix: {N}
+```
+
+### Rules
+
+1. **Language**: All communication in English. No exceptions.
+2. **Immutability**: Once created, files are never modified. Corrections go in new files.
+3. **Traceability**: Every result item must reference the original review item.
+4. **Scope**: Only runtime/execution concerns. No design opinions or feature suggestions.
+5. **Cleanup**: Files older than 30 days may be archived to `temporary/` by the human.
+
+### How to Trigger
+
+Tell the Reviewer agent:
+```
+Read REVIEWER.md, then review the code and write your report to
+project-docs/shared/review_YYYY_MM_DD.md
+```
+
+Tell the Implementer agent:
+```
+Read project-docs/shared/review_YYYY_MM_DD.md,
+apply fixes, then write your report to
+project-docs/shared/result_YYYY_MM_DD.md
+```
+HEREDOC
+
 # ---- temporary ----
 cat > "${DOCS_DIR}/temporary/README.md" << 'HEREDOC'
 ## Temporary — 원본 문서 보관소
@@ -473,54 +597,223 @@ cat > "${DOCS_DIR}/temporary/README.md" << 'HEREDOC'
 - 에이전트는 이 디렉토리의 파일을 sync 대상으로 취급하지 않는다
 HEREDOC
 
-done_ "골격 파일 생성 완료 (15개)"
+done_ "골격 파일 생성 완료 (16개)"
 
 # ============================================================
-# Phase 3: 에이전트 포인터 (상위 프로젝트 루트)
+# Phase 3: Agent pointers (project root)
 # ============================================================
 info "에이전트 포인터 생성 중... (${PROJECT_ROOT}/)"
 
+# ---- CLAUDE.md ----
 if [ ! -f "${PROJECT_ROOT}/CLAUDE.md" ]; then
   cat > "${PROJECT_ROOT}/CLAUDE.md" << 'HEREDOC'
-# Claude Code 지시
+# Claude Code Instructions
 
-이 프로젝트의 모든 규약, 아키텍처, 컨벤션은 project-docs/에 정의되어 있다.
-작업 전 반드시 project-docs/를 읽고 따른다.
+All conventions, architecture, and standards are defined in `project-docs/`.
+Read project-docs/ before starting any task.
 
-## 필수 참조
-- project-docs/architecture/overview.md — 아키텍처
-- project-docs/conventions/code-style.md — 코드 컨벤션
-- project-docs/todo/ — 작업 관리
-- project-docs/decisions/ — 아키텍처 결정 기록
+## Required References
+- `project-docs/architecture/overview.md` — Architecture
+- `project-docs/conventions/code-style.md` — Code conventions
+- `project-docs/todo/` — Task management
+- `project-docs/decisions/` — Architecture Decision Records
+
+## Inter-Agent Communication
+
+After implementation, check `project-docs/shared/` for review reports.
+
+### When a review file exists (`review_*.md`):
+1. Read the review report
+2. Apply fixes for all Critical and Warning items
+3. Write a result report to `project-docs/shared/result_YYYY_MM_DD.md`
+4. Follow the result format defined in `project-docs/shared/README.md`
+5. All communication in `shared/` must be in **English**
+
+### Result file rules:
+- Every fix must reference the original review item number
+- Items not fixed must be listed under "Deferred Items" with reasons
+- Never modify the original review file
 HEREDOC
   done_ "CLAUDE.md → ${PROJECT_ROOT}/CLAUDE.md"
 else
   warn "CLAUDE.md 가 이미 존재합니다. 건너뜁니다."
 fi
 
+# ---- GEMINI.md ----
 if [ ! -f "${PROJECT_ROOT}/GEMINI.md" ]; then
   cat > "${PROJECT_ROOT}/GEMINI.md" << 'HEREDOC'
-# Gemini CLI 지시
+# Gemini CLI Instructions (Designer / Architect)
 
-이 프로젝트의 모든 규약, 아키텍처, 컨벤션은 project-docs/에 정의되어 있다.
-PRD 또는 요구사항이 입력되면 project-docs/를 참조하여 TODO 항목으로 분해한다.
+All conventions, architecture, and standards are defined in `project-docs/`.
+When a PRD or requirement is provided, decompose it into TODO items
+following `project-docs/todo/README.md` format.
 
-## 필수 참조
-- project-docs/architecture/overview.md — 아키텍처
-- project-docs/todo/README.md — TODO 포맷 및 owner 기준
-- project-docs/conventions/code-style.md — 코드 컨벤션
+## Required References
+- `project-docs/architecture/overview.md` — Architecture
+- `project-docs/todo/README.md` — TODO format and owner criteria
+- `project-docs/conventions/code-style.md` — Code conventions
 
-## Sync 규약
-- 변경 시 what / why / impact 3요소를 반드시 기록
-- project-docs/temporary/에 원본 보관
+## Sync Rules
+- Record what / why / impact for every change
+- Archive originals in `project-docs/temporary/`
+
+## Role Boundary
+This agent handles **design and decomposition** only.
+Runtime review is handled by a separate Reviewer agent (see REVIEWER.md).
+Do not perform runtime-level code review — that is not your responsibility.
 HEREDOC
   done_ "GEMINI.md → ${PROJECT_ROOT}/GEMINI.md"
 else
   warn "GEMINI.md 가 이미 존재합니다. 건너뜁니다."
 fi
 
+# ---- REVIEWER.md ----
+if [ ! -f "${PROJECT_ROOT}/REVIEWER.md" ]; then
+  cat > "${PROJECT_ROOT}/REVIEWER.md" << 'HEREDOC'
+# Reviewer Instructions (Gemini CLI #2)
+
+This agent performs **runtime-focused code review** only.
+Do NOT evaluate design intent or feature completeness.
+The sole question is: "Will this code actually run correctly on the target platform?"
+
+## Role in Agent Architecture
+
+```
+Gemini CLI #1 (Designer)  ── design ──→  Claude Code (Implementer)
+                                              │
+                                              ▼ code
+                                    Gemini CLI #2 (Reviewer) ← THIS AGENT
+                                              │
+                                              ▼ review report
+                                    project-docs/shared/review_YYYY_MM_DD.md
+                                              │
+                                              ▼ read by
+                                    Claude Code (applies fixes)
+                                              │
+                                              ▼ result report
+                                    project-docs/shared/result_YYYY_MM_DD.md
+```
+
+## Review Checklist
+
+### 1. Language Spec Accuracy
+- Code where syntax is interpreted differently from intent
+  - Python: type annotation vs assignment confusion, mutable default args, late binding closures
+  - JS/TS: hoisting, implicit coercion, missing optional chaining, strictNullChecks violations
+  - Common: operator precedence mistakes, short-circuit side effects
+- Code that executes but has no effect (silent failure)
+- Language/runtime version compatibility issues
+
+### 2. Platform Runtime Constraints
+- API calls that don't work on the target OS/runtime
+  - macOS: Cocoa main thread requirement, App Sandbox, Gatekeeper signing
+  - Browser: file:// CORS restrictions, AudioWorklet module loading, Web API availability
+  - Linux: desktop environment differences (X11/Wayland), DBus dependencies
+- Platform differences in file paths, permissions, protocols
+  - Mixed absolute/relative paths, OS-specific path separators, temp file locations
+- External binary/service dependency availability
+  - Subprocess calls without existence checks
+  - Missing fallback when network services are unavailable
+
+### 3. Thread / Timing Safety
+- Shared state access with race condition potential
+  - Read-modify-write patterns without locks
+  - Multiple threads calling methods on the same object
+- Callback registration order vs actual invocation order mismatch
+  - Callbacks triggered before initialization completes
+  - Gap between event listener registration and event firing
+- Missing error handling in async operations
+  - Unhandled promise rejections
+  - Exception loss in fire-and-forget threads
+- Lock scope appropriateness
+  - Under-protection: shared state accessed outside critical section
+  - Over-protection: unnecessary locks causing deadlock or performance issues
+
+### 4. State Machine Consistency
+- force() calls that bypass defined transition rules
+  - Whether force() usage is documented in comments/ADR
+- Missing recovery path when transition() fails
+  - Callers ignoring transition() returning false
+- State desync between internal state and UI/external systems
+  - State changed internally but not reflected in UI/API
+
+### 5. Resource Management
+- Unclosed connections/streams/contexts
+  - AudioContext, MediaStream, WebSocket, DB connections
+  - Missing try-finally or context manager usage
+- Memory leak patterns
+  - Event listeners registered without cleanup
+  - Circular references preventing GC
+  - Closures capturing unnecessarily large scopes
+- Uncancelled timers/intervals
+  - setInterval/setTimeout without clear
+  - requestAnimationFrame without cancel
+  - threading.Timer without cancel()
+
+### 6. Data Integrity
+- Missing input validation
+  - External input (API responses, user input, files) used without validation
+  - Missing exception handling for base64 decode failures
+- Encoding/decoding mismatches
+  - Broken UTF-8 assumptions
+  - Mixed binary vs text mode
+
+## Project Context
+
+<!-- Auto-filled by Discovery phase (INIT.md step 2-5) -->
+
+### Target Platform
+- OS:
+- Runtime:
+- Protocol:
+
+### Tech Stack Constraints
+- Main frameworks:
+- Threading model:
+- Special considerations:
+
+## Output
+
+Write review reports to: `project-docs/shared/review_YYYY_MM_DD.md`
+Follow the format defined in `project-docs/shared/README.md`.
+
+After writing the review, inform the user:
+```
+Review complete. Report: project-docs/shared/review_YYYY_MM_DD.md
+Critical: {N}, Warning: {N}, Info: {N}
+
+Next: tell Claude Code to read the review and apply fixes.
+```
+
+## How to Invoke
+
+```
+Read REVIEWER.md, then review the following code from a runtime perspective.
+Target platform: {OS, runtime, etc.}
+Write your report to project-docs/shared/review_YYYY_MM_DD.md
+
+{code or file paths}
+```
+
+Full project review:
+```
+Read REVIEWER.md, then review all project source files from a runtime perspective.
+Iterate file by file. Write a consolidated report to
+project-docs/shared/review_YYYY_MM_DD.md
+```
+
+## Required References
+- `project-docs/architecture/overview.md` — Execution environment context
+- `project-docs/setup/getting-started.md` — Runtime requirements
+- `project-docs/shared/README.md` — Communication protocol and file formats
+HEREDOC
+  done_ "REVIEWER.md → ${PROJECT_ROOT}/REVIEWER.md"
+else
+  warn "REVIEWER.md 가 이미 존재합니다. 건너뜁니다."
+fi
+
 # ============================================================
-# Phase 4: Git 브랜치 생성 + 커밋
+# Phase 4: Git branch + commit
 # ============================================================
 info "Git 브랜치 생성 중..."
 
@@ -567,19 +860,40 @@ else
 fi
 
 # ============================================================
-# 완료
+# Done
 # ============================================================
 echo ""
 echo -e "${GREEN}${BOLD}   ┌─────────────────────────────────────────────────┐${NC}"
 echo -e "${GREEN}${BOLD}   │                                                 │${NC}"
 echo -e "${GREEN}${BOLD}   │   ✓  초기화 완료: ${PROJECT_NAME}${NC}"
 echo -e "${GREEN}${BOLD}   │                                                 │${NC}"
-echo -e "${GREEN}${BOLD}   │   project-docs/    15개 골격 파일 생성          │${NC}"
-echo -e "${GREEN}${BOLD}   │   CLAUDE.md        → 프로젝트 루트             │${NC}"
-echo -e "${GREEN}${BOLD}   │   GEMINI.md        → 프로젝트 루트             │${NC}"
+echo -e "${GREEN}${BOLD}   │   project-docs/    16개 골격 파일 생성          │${NC}"
+echo -e "${GREEN}${BOLD}   │   CLAUDE.md        → 구현자 (Claude Code)      │${NC}"
+echo -e "${GREEN}${BOLD}   │   GEMINI.md        → 설계자 (Gemini CLI #1)    │${NC}"
+echo -e "${GREEN}${BOLD}   │   REVIEWER.md      → 리뷰어 (Gemini CLI #2)    │${NC}"
+echo -e "${GREEN}${BOLD}   │   shared/           에이전트 간 소통 (영어)     │${NC}"
 echo -e "${GREEN}${BOLD}   │   branch           → ${PROJECT_SLUG}${NC}"
 echo -e "${GREEN}${BOLD}   │                                                 │${NC}"
 echo -e "${GREEN}${BOLD}   └─────────────────────────────────────────────────┘${NC}"
+echo ""
+
+echo -e "  ${BOLD}에이전트 구조:${NC}"
+echo ""
+echo -e "   ${CYAN}Gemini #1${NC} (GEMINI.md)   ── 설계/분해 ──→  ${CYAN}Claude Code${NC} (CLAUDE.md)"
+echo -e "     설계자                                          구현자"
+echo -e "                                                      │"
+echo -e "                                                      ▼ 코드"
+echo -e "                                            ${MAGENTA}Gemini #2${NC} (REVIEWER.md)"
+echo -e "                                              리뷰어"
+echo -e "                                                      │"
+echo -e "                                                      ▼"
+echo -e "                                            ${DIM}shared/review_*.md${NC}  (EN)"
+echo -e "                                                      │"
+echo -e "                                                      ▼ 읽고 수정"
+echo -e "                                            ${CYAN}Claude Code${NC}"
+echo -e "                                                      │"
+echo -e "                                                      ▼"
+echo -e "                                            ${DIM}shared/result_*.md${NC}  (EN)"
 echo ""
 
 echo -e "  ${BOLD}생성된 구조:${NC}"
